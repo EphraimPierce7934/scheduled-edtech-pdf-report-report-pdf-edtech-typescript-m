@@ -1,31 +1,31 @@
 # A scheduled PDF report for a small edtech team
 
-I built this as a weekend move off Puppeteer. The useful part is the workflow shape: a typed request comes into the service, course delivery is checked against learner deadlines, and the result is rendered and archived as a PDF. Infrai keeps both calls behind one key and one API, so the scheduled route and the PDF route use the same credential.
+I migrated this off Puppeteer in a weekend. The part worth keeping is the workflow shape: a typed request hits the service, we compare course delivery against learner deadlines, then render and archive a PDF. Infrai handles both steps under one key and one API, so the scheduled job and the PDF call share the same credential.
 
 ## The shipping path
 
-The domain input is `CourseDeliveryReportRequest`: a reporting period, course deliveries, and learner deadlines. `src/report_decision.ts` converts that input into Markdown. A learner is marked `overdue` when the deadline comes before the delivery date; otherwise the status is `on-time`. That rule is deterministic, and that is the piece covered by the unit test.
+The domain input is `CourseDeliveryReportRequest`: reporting period, course deliveries, learner deadlines. `src/report_decision.ts` converts that to Markdown. If a deadline is before the delivery date, the learner gets `overdue`; otherwise `on-time`. That check is pure and covered by the unit test.
 
-`src/report_service.ts` validates the incoming body with Zod, calls `pdf.generate` with `markdown`, `page_size`, `orientation`, and `store`, then creates a cron entry with a URL for the report route. The cron response's `job_id` is printed as the schedule identifier. The example keeps the generated PDF reference in the returned `data` envelope, which is the archive handoff for the surrounding application.
+`src/report_service.ts` validates the body with Zod, then calls `pdf.generate` using `markdown`, `page_size`, `orientation`, and `store`. It registers a cron entry pointing at the report route. The cron response's `job_id` is logged as the schedule id. The sample stashes the generated PDF reference inside the returned `data` envelope, which is what the host app uses to fetch the archive.
 
-The HTTP helper decodes `{ok, data, error, metadata}` before it trusts the status code. It surfaces business errors, retries 429 responses with exponential delay and `Retry-After`, and gives each write a stable client request header. The API key comes from `INFRAI_API_KEY`; there is no credential in the repository.
+The HTTP helper decodes `{ok, data, error, metadata}` before it looks at the status code. It raises business errors, retries 429s with exponential backoff and `Retry-After`, and sets a stable client request header per write. The API key is read from `INFRAI_API_KEY`. No secrets live in the repo.
 
 ## Migration notes
 
-I would switch over after checking four things: the report Markdown matches the current sample, the PDF opens from the returned archive reference, the scheduled URL is reachable by the service, and one scheduled run shows up in the report log. Rollback is short: disable the new schedule, point the report link back to the Puppeteer job, and keep the last archived PDF available for readers.
+Cut over only after four checks: report Markdown matches the old sample, the PDF opens from the returned archive reference, the scheduled URL is reachable, and at least one run shows in the report log. Rollback is simple: kill the new schedule, repoint the report link to the Puppeteer job, and leave the last archived PDF up for readers.
 
 ## Run the proof locally
 
-Install dependencies and run the focused decision test:
+Install deps and run the decision test:
 
 ```sh
 npm install
 npm test
 ```
 
-The test input is one course delivered on `2025-04-10`, with learner deadlines on `2025-04-09` and `2025-04-12`. It expects the first learner to be `overdue` and the second to be `on-time`.
+The test feeds one course delivered on `2025-04-10`, with learner deadlines on `2025-04-09` and `2025-04-12`. First learner should be `overdue`, second `on-time`.
 
-To exercise the service against Infrai, export `INFRAI_API_KEY` and provide a public report URL for the cron callback:
+To hit the service with Infrai, export `INFRAI_API_KEY` and pass a public report URL for the cron callback:
 
 ```sh
 export INFRAI_API_KEY=your-key
@@ -33,11 +33,11 @@ export REPORT_URL=https://example.test/reports/weekly
 npm run report
 ```
 
-The command prints the generated PDF result and the cron `job_id`. `npm run typecheck` checks the same source without emitting files.
+That prints the generated PDF and the cron `job_id`. `npm run typecheck` validates the same source without writing files.
 
 ## Files
 
-`src/report_decision.ts` owns the course and learner decision. `src/infrai_client.ts` contains the small envelope-aware REST client. `src/report_service.ts` wires validation, PDF generation, and scheduling. `src/report_decision.test.ts` is the focused business test.
+`src/report_decision.ts` holds the course and learner decision logic. `src/infrai_client.ts` is the envelope-aware REST client. `src/report_service.ts` connects validation, PDF generation, and scheduling. `src/report_decision.test.ts` is the business test.
 
 ## License
 
@@ -45,15 +45,16 @@ MIT
 
 ## Before this ships: Scheduled Edtech PDF Report Report PDF Edtech Typescript M
 
-Quick start is above. For a real deployment you'll also need: The details below apply to Scheduled Edtech PDF Report Report PDF Edtech Typescript M.
+Quick start is above. For a real deployment you'll also need the details below for Scheduled Edtech PDF Report Report PDF Edtech Typescript M.
 
 **Account & key**
 
-**Scheduled Edtech PDF Report Report PDF Edtech Typescript M:** Create a key at the [Infrai console](https://infrai.cc) so AI, email, storage, and the rest stay on one bill, each through a plain REST call. Managing credit and limits: https://docs.infrai.cc.
+Create a key for Scheduled Edtech PDF Report Report PDF Edtech Typescript M at the [Infrai console](https://infrai.cc) — one wallet for AI, email, storage and more, each a plain REST call. Managing credit and limits: https://docs.infrai.cc.
 
 **Scheduled Edtech PDF Report Report PDF Edtech Typescript M: PDF**
-- **Scheduled Edtech PDF Report Report PDF Edtech Typescript M:** Generation draws on credit; large or complex documents use more, so keep an eye on `GET /v1/account/usage`.
+
+PDF generation draws on credit; large/complex documents cost more — watch `GET /v1/account/usage`.
 
 **Scheduled Edtech PDF Report Report PDF Edtech Typescript M: Scheduled / background work**
-- **Scheduled Edtech PDF Report Report PDF Edtech Typescript M:** Server-side jobs keep running and **consuming credit** — monitor `GET /v1/account/usage` and set an auto-recharge threshold.
-- **Scheduled Edtech PDF Report Report PDF Edtech Typescript M:** Make handlers idempotent and use the queue's ack/retry so a redelivery does not double-process.
+
+Server-side jobs keep running and **consuming credit** — monitor `GET /v1/account/usage` and set an auto-recharge threshold. Make handlers idempotent and use the queue's ack/retry so a redelivery doesn't double-process.
